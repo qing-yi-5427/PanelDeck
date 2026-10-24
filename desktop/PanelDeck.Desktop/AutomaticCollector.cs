@@ -68,10 +68,12 @@ public static class AutomaticCollector
                 && principal.Element(ns + "UserId")?.Value == sid && principal.Element(ns + "LogonType")?.Value == "InteractiveToken"
                 && principal.Element(ns + "RunLevel")?.Value == "HighestAvailable"
                 && root.Element(ns + "RegistrationInfo")?.Element(ns + "Version")?.Value == version
-                && root.Element(ns + "Settings")?.Element(ns + "Enabled")?.Value == "true"
-                && root.Element(ns + "Settings")?.Element(ns + "AllowStartOnDemand")?.Value == "true";
+                // Scheduler serialization omits schema defaults after registration.
+                && DefaultEnabled(root.Element(ns + "Settings")?.Element(ns + "Enabled"))
+                && DefaultEnabled(root.Element(ns + "Settings")?.Element(ns + "AllowStartOnDemand"));
         } catch { executable = ""; return false; }
     }
+    private static bool DefaultEnabled(XElement? value) => value == null || value.Value is "true" or "1";
     private static T WithTask<T>(Func<dynamic, T> action) {
         dynamic service = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service")!)!;
         object? folder = null, task = null;

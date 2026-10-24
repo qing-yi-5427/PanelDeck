@@ -25,6 +25,12 @@ internal static class AutomaticCollectorTests
         check(!AutomaticCollector.ValidTask(AutomaticCollector.TaskXml(sid, Path.Combine(Path.GetTempPath(), "PanelDeck.exe"), version), sid, version, out _),
             "Reject user-writable executable location");
         var doc = XDocument.Parse(xml); XNamespace ns = doc.Root!.Name.Namespace;
+        var normalized = XDocument.Parse(xml);
+        normalized.Root!.Element(ns + "Settings")!.Element(ns + "Enabled")!.Remove();
+        normalized.Root.Element(ns + "Settings")!.Element(ns + "AllowStartOnDemand")!.Remove();
+        check(AutomaticCollector.ValidTask(normalized.ToString(), sid, version, out _), "Registered scheduler XML may omit true-valued defaults");
+        normalized.Root.Element(ns + "Settings")!.Add(new XElement(ns + "Enabled", "false"));
+        check(!AutomaticCollector.ValidTask(normalized.ToString(), sid, version, out _), "Explicit disabled value overrides omitted scheduler defaults");
         var actions = doc.Root.Element(ns + "Actions")!; actions.Add(new XElement(actions.Elements().Single()));
         check(!AutomaticCollector.ValidTask(doc.ToString(), sid, version, out _), "Reject tasks with extra executable actions");
         check(!AutomaticCollector.ValidTask("<invalid", sid, version, out _), "Malformed task is unavailable, never trusted");
