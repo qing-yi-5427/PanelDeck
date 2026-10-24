@@ -1,6 +1,6 @@
 # 电脑端使用
 
-本文对应 PC 2.9.1，兼容 Android 2.8.0，无需更新手机端。下载入口见 [项目首页](../README.md)，构建和测试见 [开发说明](../docs/development.md)。
+本文对应 PC 2.9.2，兼容 Android 2.8.0，无需更新手机端。下载入口见 [项目首页](../README.md)，构建和测试见 [开发说明](../docs/development.md)。
 
 ## 安装与更新
 

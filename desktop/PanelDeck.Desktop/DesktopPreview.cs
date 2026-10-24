@@ -7,6 +7,69 @@ public static class DesktopPreview
     private static string output = "";
     private static void Require(bool pass, string reason) { if (!pass) { File.WriteAllText(Path.Combine(output,"runtime-failure.txt"),reason); throw new InvalidOperationException(reason); } checks++; }
     public static void Render(string directory) => RenderRuntime(directory);
+    // Explicit visible diagnostic: DrawToBitmap does not include DWM/non-client paint.
+    public static void RenderChrome(string directory) {
+        output = Path.GetFullPath(directory); Directory.CreateDirectory(output); checks = 0;
+        using var controller = new Controller(new Settings());
+        using var main = new MainForm(controller, preview: true, visiblePreview: true);
+        main.Text = "曜屏 · 窗口边框验证（示例数据）";
+        main.ApplySnapshot(Sample(), true, 100, true);
+        main.TopMost = true; main.Show(); ShowChromeWindow(main.Handle, 5); main.Activate();
+        void CaptureEdge(Form form, string name) {
+            Require(form.Visible && IsChromeVisible(form.Handle), "Compositor capture requires a natively visible diagnostic window");
+            PositionChromeWindow(form.Handle, new nint(-1), 0, 0, 0, 0, 0x43);
+            Application.DoEvents(); form.Update();
+            Thread.Sleep(180); // Allow compositor resize/restore transitions to finish.
+            Application.DoEvents(); FlushComposition();
+            var origin = form.PointToScreen(Point.Empty);
+            var covering = ChromeWindowAt(new NativeScreenPoint { X = origin.X + form.Width / 2, Y = origin.Y + form.Height / 2 });
+            File.AppendAllText(Path.Combine(output, "windows.txt"), $"{name} hwnd={form.Handle} bounds={form.Bounds} origin={origin} covering={ChromeAncestor(covering, 2)}\n");
+            Require(ChromeAncestor(covering, 2) == form.Handle, "Diagnostic window is occluded; cannot validate compositor pixels");
+            using var bitmap = new Bitmap(form.ClientSize.Width, form.ClientSize.Height);
+            using (var g = Graphics.FromImage(bitmap)) g.CopyFromScreen(form.PointToScreen(Point.Empty), Point.Empty, bitmap.Size);
+            bitmap.Save(Path.Combine(output, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+            int margin = Math.Max(2, form.Padding.Left / 2);
+            foreach (var point in new[] { new Point(bitmap.Width / 2, margin), new Point(bitmap.Width / 2, bitmap.Height - margin - 1),
+                new Point(margin, bitmap.Height / 2), new Point(bitmap.Width - margin - 1, bitmap.Height / 2) }) {
+                var color = bitmap.GetPixel(point.X, point.Y);
+                Require(Math.Abs(color.R - form.BackColor.R) <= 2 && Math.Abs(color.G - form.BackColor.G) <= 2 && Math.Abs(color.B - form.BackColor.B) <= 2,
+                    $"System frame overpainted client edge in {name} at {point}: {color}");
+            }
+        }
+        CaptureEdge(main, "chrome-normal");
+        foreach (int active in new[] { 0, 1, 0, 1 }) {
+            SendChromeMessage(main.Handle, 0x86, active, 0);
+            SendChromeMessage(main.Handle, 0x85, 1, 0);
+            CaptureEdge(main, "chrome-activation-" + active);
+        }
+        main.Size = main.MinimumSize; CaptureEdge(main, "chrome-resized");
+        main.WindowState = FormWindowState.Maximized; Application.DoEvents();
+        Require(main.Bounds == Screen.FromHandle(main.Handle).WorkingArea, "Maximized custom window must fit the working area");
+        CaptureEdge(main, "chrome-maximized");
+        main.WindowState = FormWindowState.Normal; CaptureEdge(main, "chrome-restored");
+        using (var settings = new SettingsForm(controller)) {
+            settings.TopMost = true; settings.Show(); ShowChromeWindow(settings.Handle, 5); settings.Activate();
+            CaptureEdge(settings, "chrome-settings");
+            settings.Close();
+        }
+        File.WriteAllText(Path.Combine(output, "chrome-checks.txt"), $"PASS {checks} visible DWM / edge / working-area checks at {main.DeviceDpi} DPI. Synthetic data only.\n");
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern nint SendChromeMessage(nint window, int message, nint wParam, nint lParam);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "ShowWindow")]
+    private static extern bool ShowChromeWindow(nint window, int command);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "IsWindowVisible")]
+    private static extern bool IsChromeVisible(nint window);
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativeScreenPoint { public int X, Y; }
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "WindowFromPoint")]
+    private static extern nint ChromeWindowAt(NativeScreenPoint point);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetAncestor")]
+    private static extern nint ChromeAncestor(nint window, int flag);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowPos")]
+    private static extern bool PositionChromeWindow(nint window, nint after, int x, int y, int width, int height, uint flags);
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll", EntryPoint = "DwmFlush")]
+    private static extern int FlushComposition();
     public static void RenderRuntime(string directory) {
         checks = 0; directory = Path.GetFullPath(directory); Directory.CreateDirectory(directory); output = directory;
         File.Delete(Path.Combine(output,"runtime-failure.txt"));

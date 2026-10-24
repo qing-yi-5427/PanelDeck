@@ -11,6 +11,7 @@ namespace PanelDeck;
 public class BorderlessForm : Form
 {
     private const int WmNcCalcSize = 0x0083, WmNcHitTest = 0x0084, WmGetMinMaxInfo = 0x0024;
+    private const int WmNcPaint = 0x0085, WmNcActivate = 0x0086;
     private const int WmNcLeftButtonDown = 0x00A1, HtCaption = 2;
     private const int WsThickFrame = 0x00040000, WsSysMenu = 0x00080000, WsMinimizeBox = 0x00020000, WsMaximizeBox = 0x00010000;
     private const int DesignBarHeight = 40, DesignBorder = 6;
@@ -121,7 +122,13 @@ public class BorderlessForm : Form
         base.OnHandleCreated(e);
         // Supported on Windows 11; older DWM versions simply return an error.
         int preference = 2;
-        try { DwmSetWindowAttribute(Handle, 33, ref preference, sizeof(int)); }
+        try {
+            DwmSetWindowAttribute(Handle, 33, ref preference, sizeof(int));
+            // DWMWA_BORDER_COLOR / DWMWA_COLOR_NONE: keep DWM corners and shadow,
+            // but do not add a system-colored outline around our client-drawn shell.
+            int borderColor = unchecked((int)0xfffffffe);
+            DwmSetWindowAttribute(Handle, 34, ref borderColor, sizeof(int));
+        }
         catch (DllNotFoundException) { }
         catch (EntryPointNotFoundException) { }
     }
@@ -142,6 +149,15 @@ public class BorderlessForm : Form
         // Retain the resizable window style and system keyboard behavior while
         // taking responsibility for the entire non-client appearance.
         if (m.Msg == WmNcCalcSize) { m.Result = nint.Zero; return; }
+        if (m.Msg == WmNcPaint) { m.Result = nint.Zero; return; }
+        if (m.Msg == WmNcActivate) {
+            // WS_THICKFRAME is retained only for resize/snap behavior. Let Windows
+            // update activation without painting its classic frame over the client edge.
+            m.LParam = new nint(-1);
+            base.WndProc(ref m);
+            Invalidate();
+            return;
+        }
         if (m.Msg == WmGetMinMaxInfo) {
             base.WndProc(ref m);
             ApplyWorkingArea(m.LParam);

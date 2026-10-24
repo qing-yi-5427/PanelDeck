@@ -45,6 +45,11 @@ internal static class Program
             DesktopPreview.RenderRuntime(args[1]);
             return;
         }
+        if (args.Length == 2 && args[0] == "--render-chrome") {
+            ApplicationConfiguration.Initialize();
+            DesktopPreview.RenderChrome(args[1]);
+            return;
+        }
         if (args.Length > 0 && args[0] == "--command") { SingleInstance.Send(args.ElementAtOrDefault(1) ?? "show"); return; }
         using var mutex = new Mutex(false, "Local\\PanelDeck.Desktop.SingleInstance");
         try { if (!mutex.WaitOne(TimeSpan.FromSeconds(1))) { if (!args.Contains("--background")) SingleInstance.Send("show"); return; } }

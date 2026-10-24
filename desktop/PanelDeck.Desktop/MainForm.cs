@@ -6,6 +6,7 @@ public sealed class MainForm : BorderlessForm
 {
     private readonly Controller controller;
     private readonly bool preview;
+    private readonly bool visiblePreview;
     private readonly System.Windows.Forms.Timer refresh = new() { Interval = 1000 };
     private readonly Label connection = UiTheme.Label("等待手机连接", 11, bold: true), device = UiTheme.Label("同一局域网 · 自动连接", 9, UiTheme.Muted),
         state = UiTheme.Label("电脑醒着，手机就亮着", 10, UiTheme.Muted), warning = UiTheme.Label("", 9, UiTheme.Muted),
@@ -20,9 +21,9 @@ public sealed class MainForm : BorderlessForm
     private Snapshot? displayed;
     private bool displayedOnline, displayedCharging;
     private int displayedBattery = -2;
-    public MainForm(Controller controller, bool background = false, bool preview = false)
+    public MainForm(Controller controller, bool background = false, bool preview = false, bool visiblePreview = false)
     {
-        SuspendLayout(); this.controller = controller; this.preview = preview; hidden = background;
+        SuspendLayout(); this.controller = controller; this.preview = preview; this.visiblePreview = visiblePreview; hidden = background;
         VisibleChanged += (_, _) => UpdateVisibility();
         Resize += (_, _) => UpdateVisibility();
         Icon = AppIcon.Value; Text = "曜屏"; ClientSize = new(1080, 760); MinimumSize = new(940, 740);
@@ -99,7 +100,7 @@ public sealed class MainForm : BorderlessForm
         refresh.Enabled = showing;
         if (showing && authorize != null) RefreshState();
     }
-    protected override void SetVisibleCore(bool value) { base.SetVisibleCore(value && !hidden && !preview); }
+    protected override void SetVisibleCore(bool value) { base.SetVisibleCore(value && !hidden && (!preview || visiblePreview)); }
     public void ShowWindow() { hidden = false; Show(); WindowState = FormWindowState.Normal; Activate(); }
     private void RefreshState() {
         if (IsDisposed || Disposing) return;
