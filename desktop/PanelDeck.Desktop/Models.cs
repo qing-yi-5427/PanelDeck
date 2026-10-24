@@ -41,6 +41,7 @@ public sealed class Settings
     public int Port { get; set; } = 8080;
     public bool StartMinimized { get; set; } = true;
     public bool StartWithWindows { get; set; }
+    public bool AutoFullCollection { get; set; }
     public bool UseCollectorService { get; set; } = true;
     public bool EnableGameFps { get; set; } = true;
     public int SampleSeconds { get; set; } = 2;
@@ -65,6 +66,7 @@ public sealed class Settings
     }
     public void Validate()
     {
+        if (AutoFullCollection) StartWithWindows = true;
         CpuFanId ??= "";
         if (!PanelThemes.IsKnown(PanelTheme)) PanelTheme = "";
         Port = Math.Clamp(Port, 1024, 65535);

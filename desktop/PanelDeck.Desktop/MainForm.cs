@@ -105,10 +105,10 @@ public sealed class MainForm : BorderlessForm
         if (IsDisposed || Disposing) return;
         if ((!Visible || WindowState == FormWindowState.Minimized) && !preview && IsHandleCreated) return;
         authorize.Enabled = !controller.SessionAuthorized && !controller.AuthorizationPending;
-        authorize.Text = controller.AuthorizationPending ? "等待管理员授权…" : controller.SessionAuthorized ? "本次运行已授权" : "授权完整读取（UAC）";
+        authorize.Text = controller.AuthorizationPending ? "正在启动完整采集…" : controller.AutomaticallyAuthorized ? "完整采集已自动开启" : controller.SessionAuthorized ? "本次运行已授权" : "授权完整读取（UAC）";
         ApplySnapshot(controller.Current, controller.PhoneOnline, controller.PhoneBattery, controller.PhoneCharging);
         collectorState.Text = controller.CollectorStatus;
-        warning.Text = controller.Error ?? (Environment.TickCount64 < authorizationNoticeUntil ? authorizationNotice : null) ?? controller.Settings.LoadNotice ?? controller.Current.Warning ?? "关闭窗口后，曜屏会在托盘继续运行。";
+        warning.Text = controller.Error ?? (Environment.TickCount64 < authorizationNoticeUntil ? authorizationNotice : null) ?? controller.AutomaticCollectorNotice ?? controller.Settings.LoadNotice ?? controller.Current.Warning ?? "关闭窗口后，曜屏会在托盘继续运行。";
         hints.SetToolTip(warning, warning.Text);
     }
     internal void ApplySnapshot(Snapshot s, bool online, int battery, bool charging) {

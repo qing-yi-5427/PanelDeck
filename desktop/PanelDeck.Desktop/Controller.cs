@@ -16,13 +16,24 @@ public sealed class Controller : IDisposable
     private readonly SemaphoreSlim settingsGate = new(1, 1);
     private readonly Action<Settings> persist;
     private int authorizing;
+    private int configuringAutomatic;
+    private readonly SemaphoreSlim collectorGate = new(1, 1);
+    private long nextAutomaticAttempt;
+    private readonly Func<bool, Task> configureAutomatic;
+    private readonly Func<bool> automaticReady;
+    private readonly Action<bool> registerStartup;
+    public string? AutomaticCollectorNotice { get; private set; }
     private int disposed;
     public bool AuthorizationPending => Volatile.Read(ref authorizing) != 0;
     public bool SessionAuthorized => sessionCollector.IsAuthorized;
+    public bool AutomaticallyAuthorized => sessionCollector.IsAutomatic;
     public async Task AuthorizeHardware() {
+        await collectorGate.WaitAsync();
+        try {
         if (Interlocked.CompareExchange(ref authorizing, 1, 0) != 0) return;
-        try { await Task.Run(sessionCollector.Authorize); RequestSample(); }
+        try { await Task.Run(sessionCollector.Authorize); AutomaticCollectorNotice = null; RequestSample(); }
         finally { Volatile.Write(ref authorizing, 0); }
+        } finally { collectorGate.Release(); }
     }
     private Task? monitorTask, samplingTask;
     private readonly SemaphoreSlim sampleRequested = new(0, 1);
@@ -49,10 +60,14 @@ public sealed class Controller : IDisposable
     public bool PhoneOnline => Environment.TickCount64 - Interlocked.Read(ref phoneSeen) < 25000;
     public string? Error { get; private set; }
     public string CollectorStatus { get; private set; } = "正在检测采集服务";
-    public Controller(Settings value, Func<Settings, CancellationToken, Task<HardwareFrame>>? sampleOverride = null, Action<Settings>? persist = null) {
+    public Controller(Settings value, Func<Settings, CancellationToken, Task<HardwareFrame>>? sampleOverride = null, Action<Settings>? persist = null,
+        Func<bool, Task>? configureAutomatic = null, Func<bool>? automaticReady = null, Action<bool>? registerStartup = null) {
         settings = value;
         this.persist = persist ?? (next => next.Save());
         this.sampleOverride = sampleOverride;
+        this.configureAutomatic = configureAutomatic ?? AutomaticCollector.Configure;
+        this.automaticReady = automaticReady ?? AutomaticCollector.IsReady;
+        this.registerStartup = registerStartup ?? StartupRegistration.Set;
         snapshot = new(0, Environment.MachineName, new("on", "正在启动"), "CPU", "GPU", new(), null,
             new(false, false), PanelTheme: value.PanelTheme);
     }
@@ -90,6 +105,8 @@ public sealed class Controller : IDisposable
     }
     public async Task ApplySettings(Settings next, string? selectedTheme = null) {
         await settingsGate.WaitAsync();
+        Volatile.Write(ref configuringAutomatic, 1);
+        await collectorGate.WaitAsync();
         try {
         // A settings window may have been open while the phone changed its theme.
         next.PanelTheme = selectedTheme ?? settings.PanelTheme;
@@ -100,17 +117,24 @@ public sealed class Controller : IDisposable
         settings = next;
         try {
             if (networkChanged) await StartServer();
-            StartupRegistration.Set(next.StartWithWindows);
+            registerStartup(next.StartWithWindows);
             persist(next);
+            // All fallible local operations precede UAC. A cancelled setup restores them.
+            // No task is changed until the protected copy is complete and verified.
+            if (old.AutoFullCollection != next.AutoFullCollection || (next.AutoFullCollection && !automaticReady()))
+                await configureAutomatic(next.AutoFullCollection);
+            if (!next.AutoFullCollection) sessionCollector.StopAutomatic();
+            AutomaticCollectorNotice = null;
+            Interlocked.Exchange(ref nextAutomaticAttempt, 0);
             RequestSample();
         } catch {
             if (networkChanged && server != null) { await server.DisposeAsync(); server = null; }
             settings = old;
-            try { StartupRegistration.Set(old.StartWithWindows); } catch { }
+            try { registerStartup(old.StartWithWindows); persist(old); } catch (Exception ex) { DiagnosticLog.Write("settings-rollback", ex); }
             if (networkChanged) try { await StartServer(); } catch (Exception ex) { Error = "连接服务未启动：" + ex.Message; }
             throw;
         }
-        } finally { settingsGate.Release(); }
+        } finally { Volatile.Write(ref configuringAutomatic, 0); collectorGate.Release(); settingsGate.Release(); }
     }
     public async Task Start() {
         try { await StartServer(); }
@@ -148,6 +172,19 @@ public sealed class Controller : IDisposable
                         if (sampleOverride != null) next = await sampleOverride(config, stop.Token);
                         else {
                             next = null;
+                            if (config.AutoFullCollection && !sessionCollector.IsAuthorized && Volatile.Read(ref configuringAutomatic) == 0
+                                && now >= Interlocked.Read(ref nextAutomaticAttempt) && Interlocked.CompareExchange(ref authorizing, 1, 0) == 0) {
+                                Interlocked.Exchange(ref nextAutomaticAttempt, now + 60000);
+                                try {
+                                    await collectorGate.WaitAsync(stop.Token);
+                                    try { if (settings.AutoFullCollection) { sessionCollector.StartAutomatic(); AutomaticCollectorNotice = null; } }
+                                    finally { collectorGate.Release(); }
+                                }
+                                catch (Exception ex) {
+                                    DiagnosticLog.Write("automatic-collector", ex);
+                                    AutomaticCollectorNotice = "自动完整采集未启动；请在设置中保留开关并重新保存修复，或使用本次授权。";
+                                } finally { Volatile.Write(ref authorizing, 0); }
+                            }
                             bool session = sessionCollector.IsRunning && sessionCollector.Pipe != null;
                             if (sessionCollector.IsAuthorized) {
                                 next = await CollectorService.Read(stop.Token, sessionCollector.Pipe!);
@@ -173,6 +210,8 @@ public sealed class Controller : IDisposable
                                 CollectorStatus = sessionCollector.IsAuthorized ? "完整采集 · 本次运行已授权" : "基础采集 · 可点击授权完整读取";
                             }
                         }
+                        if (sessionCollector.IsAutomatic) CollectorStatus = "完整采集 · 自动授权";
+                        else if (!sessionCollector.IsAuthorized && AutomaticCollectorNotice != null) CollectorStatus += " · 自动授权待修复";
                         if (config.CpuFanId.Length > 0) {
                             var fan = next.Readings.FirstOrDefault(r => r.Type == "Fan" && r.Id == config.CpuFanId);
                             var metrics = new Dictionary<string, Metric>(next.Metrics) { ["cpuFan"] = new("CPU 风扇", "RPM", fan?.Value, fan == null ? null : fan.Hardware + " · " + fan.Name) };

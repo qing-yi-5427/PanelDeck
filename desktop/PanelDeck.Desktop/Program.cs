@@ -9,7 +9,7 @@ internal static class Program
         // STA initialization loads user32/legacy hooks before Main is entered.
         // Set the per-process policy first, then initialize the UI apartment.
         ProcessPolicy.Initialize();
-        if (args.FirstOrDefault() is "--session-collector" or "--basic-collector" || args.Contains("--collector") || args.FirstOrDefault() == "--command") {
+        if (args.FirstOrDefault() is "--session-collector" or "--basic-collector" or "--scheduled-collector" or "--configure-auto-collector" || args.Contains("--collector") || args.FirstOrDefault() == "--command") {
             Run(args); return;
         }
         var ui = new Thread(() => Run(args));
@@ -23,6 +23,11 @@ internal static class Program
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static void MainCore(string[] args)
     {
+        if (args.FirstOrDefault() == "--configure-auto-collector") { AutomaticCollector.ConfigureElevated(args); return; }
+        if (args.FirstOrDefault() == "--scheduled-collector") {
+            if (args.Length == 5) SessionCollector.Run(["--session-collector", args[2], args[3], args[4], args[1]], scheduled: true).GetAwaiter().GetResult();
+            return;
+        }
         if (args.FirstOrDefault() is "--session-collector" or "--basic-collector") { SessionCollector.Run(args).GetAwaiter().GetResult(); return; }
         if (args.Contains("--collector")) {
             var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = [], ContentRootPath = AppContext.BaseDirectory });

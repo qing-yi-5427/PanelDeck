@@ -13,6 +13,7 @@ void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.W
 NetworkMonitorTests.Run(Check);
 await FrameRateTests.Run(Check);
 DisplayFrameTests.Run(Check);
+await AutomaticCollectorTests.Run(Check);
 // Unique local pipes and synthetic data only. No production service, hardware or UI is used.
 var frame = new HardwareFrame(123, "TEST CPU", "TEST GPU", new() { ["cpuTemp"] = new("测试", "C", 42, "synthetic") }, [], null);
 var themeWrites = new List<string>();

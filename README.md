@@ -8,18 +8,19 @@
 - **全屏游戏帧率**：自动跟随前台全屏窗口，显示 FPS、平均帧时间与滚动 30 秒 1% Low。内嵌 PresentMon 分析核心，计入可追踪的生成帧，无需另装监控程序。
 - **九套主题**：保留完整时钟，以较小的辅助读数显示帧时间和 1% Low；PC 与手机可预览、保存并同步主题。
 - **屏幕联动**：电脑开机且未睡眠时保持显示，睡眠、关机或断连后息屏；亮度由手机系统管理。
+- **自动完整采集**：可选一次配置、登录后自动授权；界面与局域网服务保持普通权限。
 - **按需采集**：帧率仅在手机在线、面板亮屏且存在全屏目标时采集；授权采集进程随曜屏退出结束。
 
 ## 下载与开始使用
 
-从 [GitHub Releases](https://github.com/qing-yi-5427/aida64-lcd-panel/releases/latest) 下载 PC 精简包和 Android APK。当前发布版本为 **2.8.0**，两端建议一起更新。
+从 [GitHub Releases](https://github.com/qing-yi-5427/aida64-lcd-panel/releases/latest) 下载 PC 精简包和 Android APK。当前 PC 版本为 **2.9.0**，Android 沿用 **2.8.0**；已安装 2.8.0 手机端的用户无需重复升级。
 
 运行环境：Windows x64、Android 8.0 或更新版本。PC 精简包需要 x64 .NET 10 Desktop 与 ASP.NET Core 运行时；启动助手会检查缺失组件，点击安装后才下载安装。APK 使用开发签名，供直接安装。
 
-1. 完整解压 `PanelDeck-PC-2.8.0-Lite.zip`，运行 `PanelDeck.Launcher.exe`。升级前从托盘退出旧版，保留新包全部文件。
+1. 完整解压 `PanelDeck-PC-2.9.0-Lite.zip`，运行 `PanelDeck.Launcher.exe`。升级前从托盘退出旧版，保留新包全部文件。
 2. 安装 `PanelDeck-Android-2.8.0.apk`，手机与电脑接入同一可信局域网。电脑可用有线网络，手机用 Wi-Fi；USB 仅用于充电。
 3. 在 PC 设置的“连接与配对”中允许局域网连接，选择电脑地址并生成配对码。在手机设置中填写地址和配对码，配对后保存。
-4. 要显示游戏帧率或读取需要权限的硬件指标，点击 PC 主界面“授权完整读取（UAC）”。授权在本次运行内有效，完整退出后需重新授权。
+4. 在 PC“设置 → 采集与运行”开启“登录后自动完整采集”，保存时确认一次 UAC，以后登录无需重复手动授权。也可保持关闭，仅在需要时使用主界面的本次授权。
 
 FPS 本身不需要 PawnIO；部分 CPU / 主板读数仍受驱动和硬件支持限制。显示 FPS 依据系统显示事件统计，尚未验证所有游戏、驱动与帧生成模式；没有可靠数据时显示 `—`。
 
@@ -33,7 +34,7 @@ FPS 本身不需要 PawnIO；部分 CPU / 主板读数仍受驱动和硬件支�
 | [帧率统计](desktop/research/game-fps.md) | 显示 FPS、帧时间、1% Low 的口径与开销控制 |
 | [PresentMon 指标](desktop/research/presentmon-metrics.md) | 已支持和可扩展的指标 |
 | [构建与测试](docs/development.md) | 本地依赖、构建顺序和验证入口 |
-| [验证记录](desktop/VALIDATION.md) | 2.8.0 验收、游戏资源采样及未验证项 |
+| [验证记录](desktop/VALIDATION.md) | 当前验收、历史游戏资源采样及未验证项 |
 | [AIDA64 兼容模式](docs/aida64-mode.md) | 外部 RemoteSensor 网页与原始模板 |
 | [调研与历史记录](desktop/research/README.md) | 实现调研及旧版验收归档 |
 | [第三方组件](desktop/THIRD-PARTY.md) | 依赖来源和许可证 |

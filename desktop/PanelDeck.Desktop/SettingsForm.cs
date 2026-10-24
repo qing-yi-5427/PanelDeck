@@ -6,10 +6,11 @@ public sealed class SettingsForm : BorderlessForm
 {
     private readonly Controller controller;
     private readonly ComboBox address = new(), fan = new(), panelTheme = new();
-    private bool themeEdited, refreshingTheme;
+    private bool themeEdited, refreshingTheme, saving;
     private readonly NumericUpDown port = Number(1024, 65535), sample = Number(1, 10), sleepingSample = Number(5, 60);
     private readonly CheckBox collector = new() { Text = "复用已安装的后台采集服务", AutoSize = true }, startup = new() { Text = "登录 Windows 后启动", AutoSize = true }, minimized = new() { Text = "启动时只显示托盘图标", AutoSize = true },
         gameFps = new() { Text = "手机显示全屏游戏 FPS", AutoSize = true },
+        autoFull = new() { Text = "登录后自动完整采集", AutoSize = true },
         revoke = new() { Text = "撤销所有手机配对，保存后需重新配对", AutoSize = true };
     private readonly Label message = UiTheme.Label("", 9, UiTheme.Muted), pairing = UiTheme.Label("尚未开启配对", 19, UiTheme.Blue, true);
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 1000 };
@@ -84,7 +85,7 @@ public sealed class SettingsForm : BorderlessForm
         Section(display, "临时息屏"); Hint(display, "主界面可以手动让手机息屏；点击“自动亮灭”即可恢复电脑与手机的联动。");
         var hardware = Page("采集与运行", "调节采样速度，以及曜屏在电脑上的运行方式。");
         Section(hardware, "硬件数据");
-        Hint(hardware, "在主界面点击“授权完整读取（UAC）”，即可尝试读取 CPU 温度、功耗与主板风扇。本次运行只需授权一次，完整退出曜屏后结束。");
+        Hint(hardware, "完整采集提供游戏帧率及硬件支持的温度、功耗和风扇。可在下方开启自动采集，或在主界面仅授权本次运行。");
         sample.Value = s.SampleSeconds; sleepingSample.Value = s.SleepSampleSeconds; Row(hardware, "亮屏采样 · 秒", sample); Row(hardware, "息屏采样 · 秒", sleepingSample);
         gameFps.Checked = s.EnableGameFps; Row(hardware, "游戏帧率", gameFps);
         Hint(hardware, "授权后自动跟随前台全屏或无边框全屏程序，无需游戏名单或额外安装。仅手机在线且亮屏时采集。FPS 统计系统显示事件，含可追踪的生成帧；暂不支持时显示 —。帧率本身不需要 PawnIO 驱动。");
@@ -96,7 +97,13 @@ public sealed class SettingsForm : BorderlessForm
         if (s.CpuFanId.Length > 0 && !fan.Items.Cast<FanOption>().Any(f => f.Id == s.CpuFanId)) fan.Items.Add(new FanOption(s.CpuFanId, "已选接口（当前不可用）"));
         fan.SelectedIndex = Math.Max(0, fan.Items.Cast<FanOption>().ToList().FindIndex(f => f.Id == s.CpuFanId)); Row(hardware, "FAN 1 接口", fan);
         Hint(hardware, "FAN 1 的显示名称不代表实际主板接口。请按 BIOS 或接线确认，不会根据转速高低猜测。");
-        Section(hardware, "启动与后台"); startup.Checked = s.StartWithWindows; minimized.Checked = s.StartMinimized; Row(hardware, "启动方式", startup); Row(hardware, "", minimized);
+        Section(hardware, "启动与后台");
+        autoFull.Checked = s.AutoFullCollection; Row(hardware, "完整采集", autoFull);
+        Hint(hardware, "首次开启并保存时确认一次 UAC，以后登录自动完整采集。关闭也需确认 UAC。需当前登录账户为 Windows 管理员；不会安装驱动。");
+        if (s.AutoFullCollection) Hint(hardware, AutomaticCollector.IsReady() ? "自动采集配置就绪。更新程序后如提示待修复，保留开关并重新保存即可。" : "自动采集配置需要修复：保留此开关并保存，完成一次管理员授权。", 10, UiTheme.Ink);
+        startup.Checked = s.StartWithWindows || s.AutoFullCollection; startup.Enabled = !s.AutoFullCollection;
+        autoFull.CheckedChanged += (_, _) => { if (autoFull.Checked) startup.Checked = true; startup.Enabled = !autoFull.Checked; };
+        minimized.Checked = s.StartMinimized; Row(hardware, "启动方式", startup); Row(hardware, "", minimized);
         Hint(hardware, "关闭主窗口后留在托盘继续运行。需要完整退出时，使用托盘菜单中的“退出曜屏”。");
         Section(hardware, "高级兼容"); collector.Checked = s.UseCollectorService; Row(hardware, "采集服务", collector); Hint(hardware, "仅供已安装旧版采集服务的电脑使用。通常直接使用主界面的本次运行授权即可。数据是否可读仍取决于硬件及驱动支持。");
         var environment = Page("运行环境", "检查曜屏需要的组件，缺少时按需安装。");
@@ -121,11 +128,14 @@ public sealed class SettingsForm : BorderlessForm
         save.Click += async (_, _) => {
             var next = s.Copy(); next.ListenAddress = address.Text; next.Port = (int)port.Value; next.SampleSeconds = (int)sample.Value; next.SleepSampleSeconds = (int)sleepingSample.Value; next.CpuFanId = (fan.SelectedItem as FanOption)?.Id ?? "";
             if (revoke.Checked) next.Token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-            next.UseCollectorService = collector.Checked; next.EnableGameFps = gameFps.Checked; next.StartWithWindows = startup.Checked; next.StartMinimized = minimized.Checked; save.Enabled = false;
-            try { await controller.ApplySettings(next, themeEdited ? ((PanelThemeOption)panelTheme.SelectedItem!).Id : null); DialogResult = DialogResult.OK; Close(); }
-            catch (Exception ex) { message.Text = "保存失败：" + ex.Message; save.Enabled = true; }
+            next.UseCollectorService = collector.Checked; next.EnableGameFps = gameFps.Checked; next.AutoFullCollection = autoFull.Checked; next.StartWithWindows = startup.Checked; next.StartMinimized = minimized.Checked;
+            saving = true; Enabled = false;
+            try { await controller.ApplySettings(next, themeEdited ? ((PanelThemeOption)panelTheme.SelectedItem!).Id : null); saving = false; DialogResult = DialogResult.OK; Close(); }
+            catch (Exception ex) { message.Text = "保存失败：" + ex.Message; }
+            finally { saving = false; if (!IsDisposed) Enabled = true; }
         };
         actions.Controls.AddRange([save, cancel]); body.Controls.Add(actions); CancelButton = cancel; AcceptButton = save;
+        FormClosing += (_, e) => { if (saving) e.Cancel = true; };
         timer.Tick += (_, _) => { RefreshPairing(); RefreshThemeSelection(); }; timer.Start(); SelectPage(0);
         InstallChrome(root, allowMaximize: false, allowMinimize: false);
         UiTheme.ApplyBackground(this);

@@ -21,6 +21,17 @@ public static class DesktopPreview
         for (int page = 0; page < 5; page++) {
             using var settings = new SettingsForm(controller); settings.SelectPage(page);
             Capture(settings, Path.Combine(directory, $"settings-runtime-{page}.png"));
+            if (page == 3) {
+                var automatic = All(settings).OfType<CheckBox>().Single(c => c.Text == "登录后自动完整采集");
+                var startup = All(settings).OfType<CheckBox>().Single(c => c.Text == "登录 Windows 后启动");
+                automatic.Checked = true;
+                Require(startup.Checked && !startup.Enabled, "Automatic collection must keep ordinary logon startup enabled");
+                var scroll = All(settings).OfType<Panel>().First(p => p.AutoScroll && p.Contains(automatic));
+                scroll.ScrollControlIntoView(automatic);
+                Capture(settings, Path.Combine(directory, "settings-automatic-collection.png"));
+                automatic.Checked = false;
+                Require(startup.Enabled, "Disabling automatic collection restores independent startup selection");
+            }
         }
         // Corner and edge hit tests do not move, resize or show any window.
         foreach (var (point, expected) in new (Point,int)[] { (new(0,0),13),(new(99,0),14),(new(0,99),16),(new(99,99),17),(new(0,50),10),(new(99,50),11),(new(50,0),12),(new(50,99),15),(new(50,50),1) })
