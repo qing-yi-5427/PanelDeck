@@ -110,6 +110,8 @@ public final class DesktopLinkService extends Service {
             long now = SystemClock.elapsedRealtime();
             if (now >= nextPowerRefresh) {
                 nextPowerRefresh = now + 15000L;
+                WakePermissionMonitor.check(DesktopLinkService.this);
+                sendBroadcast(new Intent(ACTION_UPDATE).setPackage(getPackageName()));
                 Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
                 boolean plugged = battery != null && battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
                 if (plugged && connected() && ScheduleManager.prefs(DesktopLinkService.this).getBoolean(KEY_KEEPALIVE, false)) {

@@ -63,6 +63,7 @@ public final class MainActivity extends Activity {
     private WebView panel;
     private ProgressBar progress;
     private TextView settingsButton;
+    private TextView wakePermissionWarning;
     private View batteryIndicator;
     private TextView batteryValue;
     private ProgressBar batteryBar;
@@ -95,7 +96,7 @@ public final class MainActivity extends Activity {
         }
     };
     private final BroadcastReceiver modeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) { applyScreenMode(); updateDesktopPanel(); }
+        @Override public void onReceive(Context context, Intent intent) { applyScreenMode(); updateDesktopPanel(); updateBackgroundWakePermission(); }
     };
     private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { updateBattery(intent); }
@@ -280,6 +281,29 @@ public final class MainActivity extends Activity {
         FrameLayout.LayoutParams buttonLayout = new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.END | Gravity.BOTTOM);
         buttonLayout.setMargins(0, 0, dp(20), dp(24));
         root.addView(settingsButton, buttonLayout);
+
+        wakePermissionWarning = text("自动亮屏权限已关闭 · 点击恢复", 13, Color.rgb(94, 55, 8));
+        wakePermissionWarning.setGravity(Gravity.CENTER);
+        wakePermissionWarning.setPadding(dp(16), dp(12), dp(16), dp(12));
+        wakePermissionWarning.setBackground(rounded(Color.rgb(255, 231, 185), 12));
+        wakePermissionWarning.setVisibility(View.GONE);
+        wakePermissionWarning.setOnClickListener(v -> {
+            try {
+                if (WakePermissionMonitor.missing(this)) startActivity(WakePermissionMonitor.settings(this));
+                else if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        && (!prefs.getBoolean("notification_permission_requested", false)
+                            || shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS))) {
+                    prefs.edit().putBoolean("notification_permission_requested", true).apply();
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 9101);
+                } else startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
+            }
+            catch (Exception error) { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); }
+        });
+        FrameLayout.LayoutParams warningLayout = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        warningLayout.setMargins(dp(16), 0, dp(80), dp(24));
+        root.addView(wakePermissionWarning, warningLayout);
 
         sleepOverlay = buildSleepOverlay();
         sleepOverlay.setVisibility(View.GONE);
@@ -912,6 +936,13 @@ public final class MainActivity extends Activity {
     }
 
     private void updateBackgroundWakePermission() {
+        if (wakePermissionWarning != null) {
+            boolean missing = WakePermissionMonitor.missing(this);
+            boolean notifications = WakePermissionMonitor.notificationsEnabled(this);
+            wakePermissionWarning.setText(missing ? "自动亮屏权限已关闭 · 点击恢复" : "权限提醒通知已关闭 · 点击开启");
+            wakePermissionWarning.setVisibility(DesktopLinkService.enabled(this) && (missing || !notifications) ? View.VISIBLE : View.GONE);
+        }
+        WakePermissionMonitor.check(this);
         if (backgroundWakePermission != null) backgroundWakePermission.setText(
                 Settings.canDrawOverlays(this) ? "自动打开面板：已授权 · 管理权限" : "自动打开面板：需要授权");
     }

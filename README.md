@@ -13,12 +13,12 @@
 
 ## 下载与开始使用
 
-从 [GitHub Releases](https://github.com/qing-yi-5427/PanelDeck/releases/latest) 下载 PC 精简包和 Android APK。当前 PC 版本为 **2.9.2**，Android 沿用 **2.8.0**；已安装 2.8.0 手机端的用户无需重复升级。
+从 [GitHub Releases](https://github.com/qing-yi-5427/PanelDeck/releases/latest) 下载 PC 精简包和 Android APK。当前 PC 版本为 **2.9.2**，Android 为 **2.8.1**。本次手机端新增自动亮屏权限检查与提醒；已安装 PC 2.9.2 的用户只需覆盖安装新版 APK，保留配对和主题设置。
 
 运行环境：Windows x64、Android 8.0 或更新版本。PC 精简包需要 x64 .NET 10 Desktop 与 ASP.NET Core 运行时；启动助手会检查缺失组件，点击安装后才下载安装。APK 使用开发签名，供直接安装。
 
 1. 完整解压 `PanelDeck-PC-2.9.2-Lite.zip`，运行 `PanelDeck.Launcher.exe`。升级前从托盘退出旧版，保留新包全部文件。
-2. 安装 `PanelDeck-Android-2.8.0.apk`，手机与电脑接入同一可信局域网。电脑可用有线网络，手机用 Wi-Fi；USB 仅用于充电。
+2. 安装 `PanelDeck-Android-2.8.1.apk`，手机与电脑接入同一可信局域网。电脑可用有线网络，手机用 Wi-Fi；USB 仅用于充电。允许通知，以便接收自动亮屏权限异常提醒；底部出现权限提示时可点击恢复。
 3. 在 PC 设置的“连接与配对”中允许局域网连接，选择电脑地址并生成配对码。在手机设置中填写地址和配对码，配对后保存。
 4. 在 PC“设置 → 采集与运行”开启“登录后自动完整采集”，保存时确认一次 UAC，以后登录无需重复手动授权。也可保持关闭，仅在需要时使用主界面的本次授权。
 
