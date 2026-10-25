@@ -13,7 +13,7 @@
 
 ## 下载与开始使用
 
-从 [GitHub Releases](https://github.com/qing-yi-5427/aida64-lcd-panel/releases/latest) 下载 PC 精简包和 Android APK。当前 PC 版本为 **2.9.2**，Android 沿用 **2.8.0**；已安装 2.8.0 手机端的用户无需重复升级。
+从 [GitHub Releases](https://github.com/qing-yi-5427/PanelDeck/releases/latest) 下载 PC 精简包和 Android APK。当前 PC 版本为 **2.9.2**，Android 沿用 **2.8.0**；已安装 2.8.0 手机端的用户无需重复升级。
 
 运行环境：Windows x64、Android 8.0 或更新版本。PC 精简包需要 x64 .NET 10 Desktop 与 ASP.NET Core 运行时；启动助手会检查缺失组件，点击安装后才下载安装。APK 使用开发签名，供直接安装。
 
